@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Large artifacts and local data
+checkpoints/
+results/
+*.bin
+
+# Logs
+logs/*
+!logs/*.csv
+
+# Third party cloned repos
+Moonlight/
+
+# Context files
+GEMINI.md
