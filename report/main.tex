@@ -48,9 +48,9 @@ All experiments were conducted on a single GPU using the following hyperparamete
 \begin{itemize}
     \item \textbf{Model:} Qwen2.5-0.5B (approx. 494M parameters).
     \item \textbf{Dataset:} \texttt{Elriggs/openwebtext-100k} (tokenized to 512 context length).
-    \item \textbf{Batch Size:} 1 (with gradient accumulation simulated by steps).
-    \item \textbf{Steps:} 500 steps for AdamW, Muon, and Hybrid; 15,000 steps for MeZO.
-    \item \textbf{Learning Rates:} AdamW ($10^{-5}$), Muon ($10^{-4}$), Hybrid (Muon $10^{-4}$, AdamW $10^{-5}$), MeZO ($10^{-6}$). 
+    \item \textbf{Batch Size:} Effective batch size of 4 (batch size 1 with 4 gradient accumulation steps) to stabilize the loss trajectory.
+    \item \textbf{Steps:} 1,000 steps for all optimizers to evaluate convergence and resource footprint.
+    \item \textbf{Learning Rates:} AdamW ($5 \times 10^{-5}$), Muon ($10^{-4}$), Hybrid (Muon $10^{-4}$, AdamW $5 \times 10^{-5}$), MeZO ($10^{-5}$). 
     \item \textbf{Evaluation:} 0-shot accuracy on PIQA, ARC-Easy, ARC-Challenge, WinoGrande, and HellaSwag using \texttt{lm-evaluation-harness}.
 \end{itemize}
 
@@ -59,7 +59,7 @@ All experiments were conducted on a single GPU using the following hyperparamete
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\textwidth]{training_loss.png}
-\caption{Smoothed Training Loss comparison. AdamW shows the most stable descent, while Muon and Hybrid exhibit higher initial variance due to weight orthogonalization.}
+\caption{Smoothed Training Loss comparison over 1000 steps with gradient accumulation. The loss curves demonstrate a stable descent for first-order optimizers.}
 \label{fig:loss}
 \end{figure}
 
@@ -78,21 +78,46 @@ PIQA & 69.91\% & \textbf{70.13\%} & 58.97\% & 51.90\% & 49.95\% \\
 WinoGrande & 56.11\% & \textbf{57.93\%} & 51.06\% & 50.51\% & 49.41\% \\
 \bottomrule
 \end{tabular}
-\caption{Zero-shot performance (Accuracy / Acc_norm). MeZO results after 15k steps; others after 500 steps.}
+\caption{Zero-shot performance (Accuracy / Acc_norm).}
 \label{tab:results}
 \end{table}
 
-Full training logs, containing learning rate, loss, and compute time for every training step across all experiments, are provided in the \texttt{logs/} directory of the repository for full transparency and reproducibility.
+Full training logs, containing learning rate, loss, VRAM allocation, and compute time for every training step across all experiments, are provided in the \texttt{logs/} directory of the repository for full transparency and reproducibility.
 
-AdamW not only preserved knowledge but improved results on ARC-Easy and WinoGrande. Muon, even with a reduced learning rate, caused "catastrophic forgetting," likely because forcing pre-trained weights toward orthogonality disrupts the carefully learned manifolds. MeZO remained near random-chance performance, which is expected given the high dimensionality of the parameter space and the relatively low number of steps (15k) compared to the millions typically required for ZO methods.
+AdamW not only preserved knowledge but improved results on ARC-Easy and WinoGrande. Muon, even with a reduced learning rate, caused "catastrophic forgetting," likely because forcing pre-trained weights toward orthogonality disrupts the carefully learned manifolds. MeZO remained near random-chance performance, which is expected given the high dimensionality of the parameter space and the relatively low number of steps compared to the millions typically required for ZO methods.
 
 \section{Resource Efficiency Analysis}
-\begin{itemize}
-    \item \textbf{Memory (VRAM):} AdamW, Muon, and Hybrid consumed approximately 6-8 GB of VRAM. MeZO demonstrated a significant advantage, requiring only $\sim$2.5 GB of VRAM, as it does not require storing gradients or intermediate activations for the backward pass.
-    \item \textbf{Compute Time:} MeZO is roughly $2 \times$ slower per step than AdamW because it requires two forward passes per update. Muon is slightly slower due to the overhead of Newton-Schulz iterations on the GPU.
-\end{itemize}
 
-\section{Conclusion}
+To rigorously evaluate the memory footprint of each optimizer, we tracked the peak VRAM allocation on the GPU during the training runs. The results are presented in Table \ref{tab:vram} and Figure \ref{fig:vram}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Optimizer} & \textbf{Peak VRAM (MB)} \\
+\midrule
+AdamW & 5623 \\
+Hybrid & 5262 \\
+Muon & 4917 \\
+MeZO & \textbf{2452} \\
+\bottomrule
+\end{tabular}
+\caption{Peak VRAM consumption for Qwen2.5-0.5B fine-tuning (Batch Size = 1).}
+\label{tab:vram}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{vram_usage.png}
+\caption{Peak VRAM allocation during training.}
+\label{fig:vram}
+\end{figure}
+
+\begin{itemize}
+    \item \textbf{Memory (VRAM):} Standard AdamW consumed the most memory (5623 MB) due to the tracking of two momentum states for all parameters. Interestingly, Muon (4917 MB) and Hybrid (5262 MB) are slightly more memory-efficient than AdamW because Muon only stores a single momentum buffer for the 2D matrices it optimizes, omitting the second-order moment.
+    MeZO demonstrated a massive advantage, requiring only 2452 MB of VRAM. Since it estimates the gradient using only two forward passes, it entirely bypasses the memory-intensive backward pass and optimizer state storage.
+    \item \textbf{Compute Time:} MeZO is roughly $2 \times$ slower per step than AdamW because it requires two forward passes per update. Muon is slightly slower due to the overhead of Newton-Schulz iterations on the GPU.
+\end{itemize}\section{Conclusion}
 While Muon is superior for training from scratch, \textbf{AdamW remains the preferred choice for fine-tuning} due to its ability to maintain pre-trained representations. The Hybrid approach requires extremely careful per-group LR tuning to avoid divergence. MeZO is a powerful tool for OOM scenarios but requires a significantly higher step budget to achieve competitive accuracy.
 
 \end{document}

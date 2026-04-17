@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--adamw_lr", type=float, default=None, help="Specific LR for AdamW branch (useful for Muon/Hybrid)")
     parser.add_argument("--wd", type=float, default=0.1)
     parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--grad_accum_steps", type=int, default=4, help="Gradient accumulation steps")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--max_steps", type=int, default=1000)
     args = parser.parse_args()
@@ -26,6 +27,8 @@ def main():
     history = []
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
     
     # Загрузка модели и данных
     model = AutoModelForCausalLM.from_pretrained(args.model_name, torch_dtype=torch.bfloat16).to(device)
@@ -36,7 +39,7 @@ def main():
         optimizer = MeZO(model, lr=args.lr)
     else:
         optimizer = get_optimizer(model, args)
-        scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=100, num_training_steps=args.max_steps)
+        scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=100, num_training_steps=args.max_steps // args.grad_accum_steps)
 
     model.train()
     step = 0
@@ -55,15 +58,20 @@ def main():
                 loss_val = optimizer.step(batch)
             else:
                 outputs = model(input_ids=batch, labels=batch)
-                loss = outputs.loss
+                loss = outputs.loss / args.grad_accum_steps
                 loss.backward()
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad()
-                loss_val = loss.item()
+                
+                if (step + 1) % args.grad_accum_steps == 0 or (step + 1) == args.max_steps:
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()
+                loss_val = outputs.loss.item()
 
             step_time = time.time() - step_start
             current_lr = args.lr if args.optimizer == "mezo" else scheduler.get_last_lr()[0]
+            
+            # Получение статистики памяти
+            vram_mb = torch.cuda.max_memory_allocated(device) / (1024 ** 2) if torch.cuda.is_available() else 0.0
             
             # Сохранение логов
             log_entry = {
@@ -71,12 +79,13 @@ def main():
                 "loss": loss_val,
                 "lr": current_lr,
                 "step_time": step_time,
-                "total_time": time.time() - start_time
+                "total_time": time.time() - start_time,
+                "vram_mb": vram_mb
             }
             history.append(log_entry)
             
             if step % 10 == 0:
-                logger.info(f"Step {step} | Loss: {loss_val:.4f} | LR: {current_lr:.2e} | Time: {step_time:.2f}s")
+                logger.info(f"Step {step} | Loss: {loss_val:.4f} | LR: {current_lr:.2e} | VRAM: {vram_mb:.0f} MB | Time: {step_time:.2f}s")
             
             step += 1
             

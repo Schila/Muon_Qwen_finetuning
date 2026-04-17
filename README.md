@@ -43,6 +43,16 @@ Detailed results are summarized in the [LaTeX report](report/main.tex) and saved
 ### Training Loss Comparison
 ![Training Loss](report/training_loss.png)
 
+### VRAM Memory Profiling
+![VRAM Usage](report/vram_usage.png)
+
+| Optimizer | Peak VRAM (MB) |
+| :--- | :---: |
+| **ADAMW** | 5623 |
+| **HYBRID** | 5262 |
+| **MUON** | 4917 |
+| **MEZO** | **2452** |
+
 ### Performance Table (Zero-shot Accuracy)
 | Benchmark | Baseline | AdamW | Muon | Hybrid | MeZO (15k) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
