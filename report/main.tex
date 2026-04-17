@@ -114,10 +114,82 @@ MeZO & \textbf{2452} \\
 \end{figure}
 
 \begin{itemize}
+
     \item \textbf{Memory (VRAM):} Standard AdamW consumed the most memory (5623 MB) due to the tracking of two momentum states for all parameters. Interestingly, Muon (4917 MB) and Hybrid (5262 MB) are slightly more memory-efficient than AdamW because Muon only stores a single momentum buffer for the 2D matrices it optimizes, omitting the second-order moment.
+
     MeZO demonstrated a massive advantage, requiring only 2452 MB of VRAM. Since it estimates the gradient using only two forward passes, it entirely bypasses the memory-intensive backward pass and optimizer state storage.
-    \item \textbf{Compute Time:} MeZO is roughly $2 \times$ slower per step than AdamW because it requires two forward passes per update. Muon is slightly slower due to the overhead of Newton-Schulz iterations on the GPU.
-\end{itemize}\section{Conclusion}
+
+\end{itemize}
+
+
+
+\subsection{Compute Time Analysis}
+
+
+
+In addition to memory, computational throughput is a critical factor when selecting an optimizer. We tracked the average time required to perform a single training step (including forward pass, backward pass if applicable, and parameter update). The results are summarized in Table \ref{tab:time} and Figure \ref{fig:time}.
+
+
+
+\begin{table}[h]
+
+\centering
+
+\begin{tabular}{lc}
+
+\toprule
+
+\textbf{Optimizer} & \textbf{Avg Step Time (s)} \\
+
+\midrule
+
+MeZO & \textbf{0.067} \\
+
+AdamW & 0.079 \\
+
+Hybrid & 0.108 \\
+
+Muon & 0.133 \\
+
+\bottomrule
+
+\end{tabular}
+
+\caption{Average compute time per training step (Batch Size = 1 with 4 accumulation steps).}
+
+\label{tab:time}
+
+\end{table}
+
+
+
+\begin{figure}[h]
+
+\centering
+
+\includegraphics[width=0.8\textwidth]{step_time.png}
+
+\caption{Smoothed step time comparison during training.}
+
+\label{fig:time}
+
+\end{figure}
+
+
+
+\begin{itemize}
+
+    \item \textbf{MeZO:} Achieved the fastest step time (0.067s). Although it requires two forward passes to estimate the gradient, avoiding the computationally expensive backward pass (which requires calculating gradients for all intermediate activations) makes it highly efficient per step.
+
+    \item \textbf{AdamW:} Represented a solid baseline (0.079s), utilizing highly optimized PyTorch primitives for the forward and backward passes, followed by a straightforward element-wise parameter update.
+
+    \item \textbf{Muon and Hybrid:} Both introduced noticeable computational overhead. The Muon optimizer was the slowest (0.133s per step, nearly a 68\% increase over AdamW). This slowdown is directly attributable to the Newton-Schulz iterations required to compute the orthogonalized weight updates on the GPU. The Hybrid optimizer (0.108s) sat between AdamW and Muon, as the Newton-Schulz iterations were only applied to half of the model's layers.
+
+\end{itemize}
+
+
+
+\section{Conclusion}
 While Muon is superior for training from scratch, \textbf{AdamW remains the preferred choice for fine-tuning} due to its ability to maintain pre-trained representations. The Hybrid approach requires extremely careful per-group LR tuning to avoid divergence. MeZO is a powerful tool for OOM scenarios but requires a significantly higher step budget to achieve competitive accuracy.
 
 \end{document}

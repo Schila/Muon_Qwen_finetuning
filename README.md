@@ -53,6 +53,16 @@ Detailed results are summarized in the [LaTeX report](report/main.tex) and saved
 | **MUON** | 4917 |
 | **MEZO** | **2452** |
 
+### Step Time Profiling
+![Step Time](report/step_time.png)
+
+| Optimizer | Avg Step Time (s) |
+| :--- | :---: |
+| **MEZO** | **0.067** |
+| **ADAMW** | 0.079 |
+| **HYBRID** | 0.108 |
+| **MUON** | 0.133 |
+
 ### Performance Table (Zero-shot Accuracy)
 | Benchmark | Baseline | AdamW | Muon | Hybrid | MeZO (15k) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
@@ -65,7 +75,8 @@ Detailed results are summarized in the [LaTeX report](report/main.tex) and saved
 ### Key Findings
 - **AdamW** preserves pre-trained knowledge and shows slight improvements on logical reasoning tasks.
 - **Muon** and the **Hybrid** approach lead to catastrophic forgetting during fine-tuning, as aggressive orthogonalization disrupts pre-trained representations.
-- **MeZO** (zeroth-order) requires significantly more steps to converge in high-dimensional spaces but is extremely memory-efficient (~2.5GB VRAM).
+- **MeZO** (zeroth-order) requires significantly more steps to converge in high-dimensional spaces but is extremely memory-efficient (~2.5GB VRAM) and computationally fast (0.067s per step).
+- **Muon** incurs a significant computational overhead (~68% slower than AdamW per step) due to the heavy Newton-Schulz matrix iterations.
 
 ### Training Logs
 Detailed CSV logs for every training step (loss, learning rate, and time) are available in the `logs/` directory for all optimizers.

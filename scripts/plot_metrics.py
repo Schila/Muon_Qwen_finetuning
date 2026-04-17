@@ -43,6 +43,8 @@ def plot_metrics():
     # === 2. Plot VRAM Usage ===
     plt.figure(figsize=(10, 6))
     vram_stats = []
+    time_stats = []
+    
     for file in sorted(log_files):
         opt_name = os.path.basename(file).split('_')[0]
         color = color_map.get(opt_name, "black")
@@ -55,8 +57,16 @@ def plot_metrics():
                     df_subset = df_valid[df_valid["step"] <= 2000]
                     plt.plot(df_subset["step"], df_subset["vram_mb"], label=opt_name.upper(), color=color, linewidth=2)
                     vram_stats.append({"Optimizer": opt_name.upper(), "Peak VRAM (MB)": int(df_valid["vram_mb"].max())})
+            
+            if "step_time" in df.columns:
+                # Ignore the first step as it usually includes initialization overhead
+                df_time = df[df["step"] > 0]
+                if not df_time.empty:
+                    avg_time = df_time["step_time"].mean()
+                    time_stats.append({"Optimizer": opt_name.upper(), "Avg Step Time (s)": round(avg_time, 3)})
+                    
         except Exception as e:
-            print(f"Could not process vram for {file}: {e}")
+            print(f"Could not process vram/time for {file}: {e}")
 
     if vram_stats:
         plt.title("Peak VRAM Allocation Comparison")
@@ -71,6 +81,35 @@ def plot_metrics():
         stats_df = pd.DataFrame(vram_stats)
         print(stats_df.to_string(index=False))
         print("-----------------------------\n")
+    plt.close()
+
+    # === 3. Plot Step Time ===
+    if time_stats:
+        plt.figure(figsize=(10, 6))
+        for file in sorted(log_files):
+            opt_name = os.path.basename(file).split('_')[0]
+            color = color_map.get(opt_name, "black")
+            try:
+                df = pd.read_csv(file)
+                if "step_time" in df.columns and "step" in df.columns:
+                    df_subset = df[(df["step"] > 0) & (df["step"] <= 2000)]
+                    smoothed_time = df_subset["step_time"].ewm(alpha=0.1, adjust=False).mean()
+                    plt.plot(df_subset["step"], smoothed_time, label=f"{opt_name.upper()} (EMA)", color=color, linewidth=2)
+            except Exception as e:
+                print(f"Could not process time plot for {file}: {e}")
+
+        plt.title("Average Step Time Comparison (Smoothed)")
+        plt.xlabel("Training Steps")
+        plt.ylabel("Time per Step (seconds)")
+        plt.grid(True, linestyle="--", alpha=0.7)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig("report/step_time.png", dpi=300)
+        
+        print("\n--- Average Step Time Table ---")
+        time_df = pd.DataFrame(time_stats)
+        print(time_df.to_string(index=False))
+        print("-------------------------------\n")
     plt.close()
 
 if __name__ == "__main__":
