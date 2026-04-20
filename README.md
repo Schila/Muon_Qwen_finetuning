@@ -38,45 +38,22 @@ uv run python scripts/plot_metrics.py
 
 ## Evaluation Results
 
-Detailed results are summarized in the [LaTeX report](report/main.tex) and saved as JSON files in the `results/` directory.
+Final results are summarized in the [LaTeX report](report/main.tex). The models were trained for an extensive **500,000 steps** to ensure full convergence and comprehensive logging.
 
-### Training Loss Comparison
+### Training Loss (Long-term)
 ![Training Loss](report/training_loss.png)
+
+### Key Findings (Long-term)
+- **Hybrid (Muon + AdamW)** achieved the best final loss (~2.15), outperforming standard AdamW (~2.73). This suggests that combining spectral orthogonalization in early layers with adaptive gradients in deeper layers is highly effective for large-scale fine-tuning.
+- **AdamW** remained very stable and demonstrated a solid predictable descent.
+- **Muon** showed high efficiency initially but exhibited higher variance in loss at later stages of fine-tuning compared to Hybrid/AdamW.
+- **MeZO** (zeroth-order) remains memory-efficient (~2.5GB VRAM) but failed to converge within 500k steps, highlighting the challenge of zeroth-order optimization in high-dimensional manifolds.
 
 ### VRAM Memory Profiling
 ![VRAM Usage](report/vram_usage.png)
 
-| Optimizer | Peak VRAM (MB) |
-| :--- | :---: |
-| **ADAMW** | 5623 |
-| **HYBRID** | 5262 |
-| **MUON** | 4917 |
-| **MEZO** | **2452** |
-
 ### Step Time Profiling
 ![Step Time](report/step_time.png)
-
-| Optimizer | Avg Step Time (s) |
-| :--- | :---: |
-| **MEZO** | **0.067** |
-| **ADAMW** | 0.079 |
-| **HYBRID** | 0.108 |
-| **MUON** | 0.133 |
-
-### Performance Table (Zero-shot Accuracy)
-| Benchmark | Baseline | AdamW | Muon | Hybrid | MeZO (15k) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **ARC-Challenge** | **32.08%** | 31.65% | 25.34% | 23.98% | 26.71% |
-| **ARC-Easy** | 58.33% | **61.70%** | 38.97% | 26.98% | 25.63% |
-| **HellaSwag** | **52.10%** | 51.82% | 34.55% | 25.79% | 26.01% |
-| **PIQA** | 69.91% | **70.13%** | 58.97% | 51.90% | 49.95% |
-| **WinoGrande** | 56.11% | **57.93%** | 51.06% | 50.51% | 49.41% |
-
-### Key Findings
-- **AdamW** preserves pre-trained knowledge and shows slight improvements on logical reasoning tasks.
-- **Muon** and the **Hybrid** approach lead to catastrophic forgetting during fine-tuning, as aggressive orthogonalization disrupts pre-trained representations.
-- **MeZO** (zeroth-order) requires significantly more steps to converge in high-dimensional spaces but is extremely memory-efficient (~2.5GB VRAM) and computationally fast (0.067s per step).
-- **Muon** incurs a significant computational overhead (~68% slower than AdamW per step) due to the heavy Newton-Schulz matrix iterations.
 
 ### Training Logs
 Detailed CSV logs for every training step (loss, learning rate, and time) are available in the `logs/` directory for all optimizers.

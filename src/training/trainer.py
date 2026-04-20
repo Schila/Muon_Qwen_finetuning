@@ -87,6 +87,9 @@ def main():
             if step % 10 == 0:
                 logger.info(f"Step {step} | Loss: {loss_val:.4f} | LR: {current_lr:.2e} | VRAM: {vram_mb:.0f} MB | Time: {step_time:.2f}s")
             
+            if step > 0 and step % 1000 == 0:
+                pd.DataFrame(history).to_csv(log_file, index=False)
+            
             step += 1
             
         if step >= args.max_steps:
